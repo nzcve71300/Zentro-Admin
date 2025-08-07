@@ -1,4 +1,6 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionFlagsBits, SlashCommandBuilder, ChannelType } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const client = new Client({
@@ -17,6 +19,64 @@ const ticketConfig = new Map(); // guildId -> { channelId, roleId }
 const openTickets = new Map(); // userId -> { channelId, ticketNumber }
 let ticketCounter = 1;
 
+// File paths for persistence
+const CONFIG_FILE = path.join(__dirname, 'ticket-config.json');
+const TICKETS_FILE = path.join(__dirname, 'open-tickets.json');
+const COUNTER_FILE = path.join(__dirname, 'ticket-counter.json');
+
+// Load saved data on startup
+function loadTicketData() {
+    try {
+        if (fs.existsSync(CONFIG_FILE)) {
+            const configData = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+            Object.entries(configData).forEach(([guildId, config]) => {
+                ticketConfig.set(guildId, config);
+            });
+            console.log('✅ Loaded ticket configuration');
+        }
+        
+        if (fs.existsSync(TICKETS_FILE)) {
+            const ticketsData = JSON.parse(fs.readFileSync(TICKETS_FILE, 'utf8'));
+            Object.entries(ticketsData).forEach(([userId, ticket]) => {
+                openTickets.set(userId, ticket);
+            });
+            console.log('✅ Loaded open tickets');
+        }
+        
+        if (fs.existsSync(COUNTER_FILE)) {
+            const counterData = JSON.parse(fs.readFileSync(COUNTER_FILE, 'utf8'));
+            ticketCounter = counterData.counter || 1;
+            console.log('✅ Loaded ticket counter');
+        }
+    } catch (error) {
+        console.error('❌ Error loading ticket data:', error);
+    }
+}
+
+// Save data to files
+function saveTicketData() {
+    try {
+        // Save config
+        const configData = {};
+        ticketConfig.forEach((config, guildId) => {
+            configData[guildId] = config;
+        });
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(configData, null, 2));
+        
+        // Save open tickets
+        const ticketsData = {};
+        openTickets.forEach((ticket, userId) => {
+            ticketsData[userId] = ticket;
+        });
+        fs.writeFileSync(TICKETS_FILE, JSON.stringify(ticketsData, null, 2));
+        
+        // Save counter
+        fs.writeFileSync(COUNTER_FILE, JSON.stringify({ counter: ticketCounter }, null, 2));
+    } catch (error) {
+        console.error('❌ Error saving ticket data:', error);
+    }
+}
+
 const ALLOWED_GUILD_ID = '1385691441967267953';
 
 client.on('guildCreate', guild => {
@@ -26,6 +86,9 @@ client.on('guildCreate', guild => {
 });
 
 client.on('ready', () => {
+    // Load saved ticket data
+    loadTicketData();
+    
     // If the bot is in any other guild, leave them
     client.guilds.cache.forEach(guild => {
         if (guild.id !== ALLOWED_GUILD_ID) {
@@ -201,6 +264,7 @@ async function handleButtonInteraction(interaction) {
             ]
         });
         openTickets.set(userId, { channelId: ticketChannel.id, ticketNumber });
+        saveTicketData(); // Save to file
         // Orange embed with instructions
         const embed = new EmbedBuilder()
             .setTitle('THANK YOU FOR PURCHASING ZENTRO BOT!')
@@ -392,6 +456,7 @@ async function handleSetupTicket(interaction) {
     }
     // Save config for this guild
     ticketConfig.set(interaction.guildId, { channelId: channel.id, roleId: role.id });
+    saveTicketData(); // Save to file
 
     // Orange color
     const orange = 0xFFA500;
@@ -447,6 +512,7 @@ async function handleTicketClose(interaction) {
     await user.send({ embeds: [dmEmbed] });
     await interaction.reply({ content: 'Ticket will be closed and channel deleted in 1 minute.', ephemeral: true });
     openTickets.delete(userId);
+    saveTicketData(); // Save to file
 }
 
 function isAllowedGuild(interaction) {
