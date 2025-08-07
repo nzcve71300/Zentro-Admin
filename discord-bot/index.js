@@ -109,6 +109,78 @@ async function handleButtonInteraction(interaction) {
     const guildId = interaction.guildId;
     const config = ticketConfig.get(guildId);
     const orange = 0xFFA500;
+    
+    // Handle embed creator buttons
+    if (interaction.customId === 'edit_text') {
+        const modal = new ModalBuilder()
+            .setCustomId('embed_text_modal')
+            .setTitle('Edit Embed Text');
+        
+        const titleInput = new TextInputBuilder()
+            .setCustomId('embed_title')
+            .setLabel('Embed Title')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Enter your embed title')
+            .setRequired(false);
+        
+        const descriptionInput = new TextInputBuilder()
+            .setCustomId('embed_description')
+            .setLabel('Embed Description')
+            .setStyle(TextInputStyle.Paragraph)
+            .setPlaceholder('Enter your embed description')
+            .setRequired(false);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(titleInput),
+            new ActionRowBuilder().addComponents(descriptionInput)
+        );
+        
+        await interaction.showModal(modal);
+        return;
+    }
+    
+    if (interaction.customId === 'edit_style') {
+        const modal = new ModalBuilder()
+            .setCustomId('embed_style_modal')
+            .setTitle('Customize Embed Style');
+        
+        const colorInput = new TextInputBuilder()
+            .setCustomId('embed_color')
+            .setLabel('Embed Color (Hex Code)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('#5865F2')
+            .setRequired(false);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(colorInput)
+        );
+        
+        await interaction.showModal(modal);
+        return;
+    }
+    
+    if (interaction.customId === 'send_embed') {
+        const data = embedData.get(userId) || {
+            title: '🎯 **Embed Creator**',
+            description: 'Create beautiful, rich embeds with this powerful tool!\n\n**Features:**\n• ✏️ Customize title and description\n• 🎨 Change colors with hex codes\n• 📤 Send professional embeds\n• 🎯 Rich formatting support',
+            color: '#5865F2',
+            timestamp: true,
+            thumbnail: true
+        };
+        
+        const embed = new EmbedBuilder()
+            .setTitle(data.title)
+            .setDescription(data.description)
+            .setColor(data.color)
+            .setThumbnail(data.thumbnail ? client.user.displayAvatarURL() : null)
+            .setTimestamp()
+            .setFooter({ text: 'Powered by Zentro • Rich Embed Creator', iconURL: client.user.displayAvatarURL() });
+        
+        await interaction.channel.send({ embeds: [embed] });
+        await interaction.reply({ content: '✅ Embed sent successfully!', ephemeral: true });
+        return;
+    }
+    
     if (interaction.customId === 'zentro_setup') {
         if (!config) {
             await interaction.reply({ content: 'Ticket system is not configured. Please ask an admin to run /setup-ticket.', ephemeral: true });
@@ -290,12 +362,19 @@ async function handleModalSubmit(interaction) {
         const invite = interaction.fields.getTextInputValue('zentro_invite');
         const email = interaction.fields.getTextInputValue('zentro_email');
         const orange = 0xFFA500;
+        
+        // Create success embed
         const embed = new EmbedBuilder()
-            .setTitle('Setup Information Submitted')
-            .setDescription(`**Invite Link:** ${invite}\n**Payment Email:** ${email}`)
+            .setTitle('✅ Setup Information Submitted')
+            .setDescription(`**Invite Link:** ${invite}\n**Payment Email:** ${email}\n\nThank you for submitting your information! Zentro staff will review your details and get back to you soon.`)
             .setColor(orange)
             .setFooter({ text: 'Powered by Zentro', iconURL: interaction.client.user.displayAvatarURL() });
-        await interaction.reply({ embeds: [embed] });
+        
+        // Send the embed to the ticket channel
+        await interaction.channel.send({ embeds: [embed] });
+        
+        // Acknowledge the modal submission
+        await interaction.reply({ content: '✅ Information submitted successfully!', ephemeral: true });
     }
 }
 
